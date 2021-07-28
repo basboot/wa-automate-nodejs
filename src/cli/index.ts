@@ -5,7 +5,9 @@ import tcpPortUsed from 'tcp-port-used';
 import { default as axios } from 'axios'
 import { cli } from './setup';
 import { collections, generateCollections } from './collections';
-import { setUpExpressApp, setupAuthenticationLayer, setupRefocusDisengageMiddleware, setupApiDocs, setupSwaggerStatsMiddleware, setupMediaMiddleware, app, setupSocketServer, server } from './server';
+import { setUpExpressApp, setupAuthenticationLayer, setupRefocusDisengageMiddleware, setupApiDocs, setupSwaggerStatsMiddleware, setupMediaMiddleware, app, setupSocketServer, server, setupBotPressHandler } from './server';
+
+let checkUrl = isUrl;
 
 const ready: (config : any) => Promise<void> = async (config : any) => {
     if (process.send) {
@@ -55,7 +57,8 @@ async function start() {
             if (!Array.isArray(cliConfig.ef)) cliConfig.ef = [cliConfig.ef]
             cliConfig.ef = cliConfig.ef.flatMap(s => s.split(','))
         }
-        if (!isUrl(cliConfig.ev)) spinner.fail("--ev/-e expecting URL - invalid URL.")
+        if(cliConfig.skipUrlCheck) checkUrl = () => true
+        if (!checkUrl(cliConfig.ev)) spinner.fail("--ev/-e expecting URL - invalid URL.")
         else ev.on('**', async (data, sessionId, namespace) => {
             if (cliConfig?.ef) {
                 if (!cliConfig.ef.includes(namespace)) return;
@@ -97,6 +100,11 @@ async function start() {
                 process.exit();
             }
         })
+        if(cliConfig?.botPressUrl){
+            spinner.info('Setting Up Botpress handler');
+            setupBotPressHandler(cliConfig, client)
+            spinner.succeed('Botpress handler set up successfully');
+        }
         if (cliConfig?.webhook) {
             if (Array.isArray(cliConfig.webhook)) {
                 await Promise.all(cliConfig.webhook.map(webhook => {

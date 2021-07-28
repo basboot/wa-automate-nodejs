@@ -12,6 +12,8 @@ import { ev, Spin } from '../controllers/events';
 import isUrl from 'is-url';
 import * as path from 'path';
 
+let checkUrl = isUrl;
+
 const configWithCases = readJsonSync(path.join(__dirname,'../../bin/config-schema.json'));
 
 const optionList:
@@ -27,6 +29,11 @@ const optionList:
         alias: 'n',
         type: Boolean,
         description: "Don't expose the api. This may be useful if you just want to set the webhooks."
+    },{
+        name: 'bot-press-url',
+        alias: 'b',
+        type: String,
+        description: "The Botpress URL that ends with your bot id. Example: http://localhost:3000/api/v1/bots/cool-bot"
     },
     {
         name: 'port',
@@ -197,6 +204,11 @@ const optionList:
         name: 'auto-reject',
         type: Boolean,
         description: "Automatically reject incoming phone and video calls to the host account."
+    },
+    {
+        name: 'skip-url-check',
+        type: Boolean,
+        description: "Don't validate webhook URLs. Enables use of non-FQDNs."
     },
     {
         name: 'help',
@@ -387,13 +399,15 @@ export const cli: () => {
         })
     }
 
+    if(cliConfig.skipUrlCheck) checkUrl = () => true;
+
     if (cliConfig.webhook || cliConfig.webhook == '') {
-        if (isUrl(cliConfig.webhook) || Array.isArray(cliConfig.webhook)) {
+        if (checkUrl(cliConfig.webhook) || Array.isArray(cliConfig.webhook)) {
             spinner.succeed('webhooks set already')
         } else {
             if (cliConfig.webhook == '') cliConfig.webhook = 'webhooks.json';
             cliConfig.webhook = tryOpenFileAsObject(cliConfig.webhook, true);
-            if (!isUrl(cliConfig.webhook)) {
+            if (!checkUrl(cliConfig.webhook)) {
                 cliConfig.webhook = undefined
             }
         }

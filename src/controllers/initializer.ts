@@ -302,7 +302,7 @@ export async function create(config: ConfigObject = {}): Promise<Client> {
       debugInfo = {...debugInfo, LAUNCH_TIME_MS};
       spinner.emit(debugInfo, "DebugInfo");
       const metrics = await waPage.evaluate(`WAPI.launchMetrics()`);
-      spinner.succeed(`Client loaded with ${metrics.contacts} contacts, ${metrics.chats} chats & ${metrics.messages} messages in ${LAUNCH_TIME_MS/1000}s`);
+      spinner.succeed(`Client loaded for ${metrics.isBiz ? "business" : "normal"} account with ${metrics.contacts} contacts, ${metrics.chats} chats & ${metrics.messages} messages in ${LAUNCH_TIME_MS/1000}s`);
       if(config?.deleteSessionDataOnLogout || config?.killClientOnLogout) config.eventMode = true;
       const client = new Client(waPage, config, debugInfo);
       const { me } = await client.getMe();
@@ -419,7 +419,7 @@ export async function getLicense(config: ConfigObject, me : {
   if(!axios) axios = await import('axios');
   const hasSpin = !!spinner;
   if(!spinner) spinner = new Spin(config.sessionId || "session", "FETCH_LICENSE", config.disableSpins,true)
-  spinner?.start('Fetching License', hasSpin ? undefined : 2)
+  spinner?.start(`Fetching License: ${Array.isArray(config.licenseKey) ? config.licenseKey : config.licenseKey.indexOf("-")==-1 ? config.licenseKey.slice(-4) : config.licenseKey.split("-").slice(-1)[0]}`, hasSpin ? undefined : 2)
   try {
   const START = Date.now()
   const { data } = await axios.post(pkg.licenseCheckUrl, { key: config.licenseKey, number: me._serialized, ...debugInfo });

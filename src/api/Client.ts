@@ -119,6 +119,7 @@ declare module WAPI {
   const setPresence: (available: boolean) => void;
   const getMessageReaders: (messageId: string) => Contact[];
   const getStatus: (contactId: string) => void;
+  const B: (chatId: string, payload: any) => MessageId;
   const getCommonGroups: (contactId: string) => Promise<{id:string,title:string}[]>;
   const forceUpdateLiveLocation: (chatId: string) => Promise<LiveLocationChangedEvent []> | boolean;
   const setGroupIcon: (groupId: string, imgData: string) => Promise<boolean>;
@@ -612,7 +613,6 @@ export class Client {
   }
 
   /**
-   * [REQUIRES AN INSIDERS LICENSE-KEY](https://gum.co/open-wa?tier=Insiders%20Program)
    * 
    * Listens to when a message is deleted by a recipient or the host account
    * @event 
@@ -1639,9 +1639,6 @@ public async onLiveLocation(chatId: ChatId, fn: (liveLocationChangedEvent: LiveL
  */
   public async getMe() : Promise<any> {
     return await this._page.evaluate(() => WAPI.getMe());
-    // return await this.pup(() => WAPI.getMe());
-    //@ts-ignore
-    // return await this.pup(() => Store.Me.attributes);
   }
 
   /**
@@ -1869,13 +1866,13 @@ public async iAmAdmin() : Promise<GroupChatId[]>  {
  * Any potential abuse of this method will see it become paywalled.
  * @param to: Chat id to forward the message to
  * @param messageId: message id of the message to forward. Please note that if it is not loaded, this will return false - even if it exists.
- * @returns Promise<boolean>
+ * @returns Promise<MessageId | boolean>
  */
-  public async ghostForward(to: ChatId, messageId: MessageId) : Promise<boolean> {
+  public async ghostForward(to: ChatId, messageId: MessageId) : Promise<MessageId | boolean> {
     return await this.pup(
       ({ to, messageId }) => WAPI.ghostForward(to, messageId),
       { to, messageId }
-    ) as Promise<boolean>;
+    ) as Promise<MessageId | boolean>;
   }
 
   /**
@@ -2385,6 +2382,25 @@ public async getStatus(contactId: ContactId) : Promise<{
   ) as Promise<{id: string,status: string}>;
 }
 
+  /**
+   * 
+   * [REQUIRES AN INSIDERS LICENSE-KEY](https://gum.co/open-wa?tier=Insiders%20Program)
+   * 
+   * Use a Baileys payload within your open-wa session
+   * 
+   * @param chatId
+   * @param payload {any} 
+   * returns: MessageId
+   */
+   public async B(chatId: ChatId, payload: {
+     [k: string]: any
+   }) : Promise<MessageId>{
+    return await this.pup(
+      ({ chatId, payload }) => WAPI.B(chatId, payload),
+      { chatId, payload }
+    ) as Promise<MessageId>;
+  }
+  
   /**
     * Load all messages in chat object from server.
    * @param contactId
