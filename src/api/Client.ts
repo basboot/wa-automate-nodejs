@@ -26,7 +26,7 @@ import { bleachMessage, decryptMedia } from '@open-wa/wa-decrypt';
 import * as path from 'path';
 import { CustomProduct, Label, Order, Product } from './model/product';
 import { defaultProcessOptions, Mp4StickerConversionProcessOptions, StickerMetadata } from './model/media';
-import { getAndInjectLicense, getAndInjectLivePatch, getLicense } from '../controllers/initializer';
+import { earlyInjectionCheck, getAndInjectLicense, getAndInjectLivePatch, getLicense } from '../controllers/initializer';
 import { SimpleListener } from './model/events';
 import { AwaitMessagesOptions, Collection, CollectorFilter, CollectorOptions } from '../structures/Collector';
 import { MessageCollector } from '../structures/MessageCollector';
@@ -105,6 +105,8 @@ declare module WAPI {
   const getGeneratedUserAgent: (userAgent?: string) => string;
   const forwardMessages: (to: string, messages: string | (string | Message)[], skipMyMessages: boolean) => any;
   const createNewProduct : (name : string, price : number, currency : string, images : DataURL[], description : string, url ?: string, internalId ?: string, isHidden ?: boolean) => Promise<any>;
+  const editProduct : (id: string, name : string, price : number, currency : string, images : DataURL[], description : string, url ?: string, internalId ?: string, isHidden ?: boolean) => Promise<any>;
+  const sendProduct : (chatId : string, productId : string) => Promise<any>;
   const sendLocation: (to: string, lat: any, lng: any, loc: string) => Promise<string>;
   const addParticipant: (groupId: string, contactId: string) => Promise<boolean | string>;
   const sendGiphyAsSticker: (chatId: string, url: string) => Promise<any>;
@@ -398,6 +400,7 @@ export class Client {
      spinner.info('Refreshing page')
      const START_TIME = Date.now();
      await this._page.goto(puppeteerConfig.WAUrl);
+     await earlyInjectionCheck(this._page as Page)
      if(await isAuthenticated(this._page)) {
        /**
         * Reset all listeners
@@ -408,12 +411,13 @@ export class Client {
       /**
        * patch
        */
-      await getAndInjectLivePatch(this._page, spinner)
+      await getAndInjectLivePatch(this._page, spinner, null, this._createConfig, this._sessionInfo)
       if (this._createConfig?.licenseKey) await getAndInjectLicense(this._page,this._createConfig,me, this._sessionInfo, spinner, preloadlicense);
       /**
        * init patch
        */
      await injectInitPatch(this._page)
+     spinner.info("Reregistering listeners")
      await this.loaded()
      if(!this._createConfig?.eventMode) await this._reRegisterListeners();
      spinner.succeed(`Session refreshed in ${(Date.now() - START_TIME)/1000}s`)
@@ -733,7 +737,7 @@ export class Client {
    * @returns `true` if the callback was registered
    */
   public async onAck(fn: (message: Message) => void) : Promise<Listener | boolean> {
-    const _fn = async (message : Message) => fn(await this.preprocessMessage(message))
+    const _fn = async (message : Message) => fn(message)
     return this.registerListener(SimpleListener.Ack, _fn);
   }
 
@@ -1210,8 +1214,6 @@ public async onLiveLocation(chatId: ChatId, fn: (liveLocationChangedEvent: LiveL
 
 
   /**
-   * [REQUIRES AN INSIDERS LICENSE-KEY](https://gum.co/open-wa?tier=Insiders%20Program)
-   * 
    * Sends a reply to given chat that includes mentions, replying to the provided replyMessageId.
    * In order to use this method correctly you will need to send the text like this:
    * "@4474747474747 how are you?"
@@ -1715,6 +1717,7 @@ public async iAmAdmin() : Promise<GroupChatId[]>  {
   }
 
   /**
+   * @deprecated
    * Feature Currently only available with Premium License accounts.
    * 
    * Send a custom product to a chat. Please see [[CustomProduct]] for details.
@@ -1725,7 +1728,6 @@ public async iAmAdmin() : Promise<GroupChatId[]>  {
    * - This will only work if you have at least 1 product already in your catalog
    * - Only works on Business accounts
    */
-
    public async sendCustomProduct(to: ChatId, image: DataURL, productData: CustomProduct) : Promise<MessageId | boolean>  {
     return await this.pup(
       ({ to, image, productData }) => WAPI.sendCustomProduct(to, image, productData),
@@ -2192,6 +2194,46 @@ public async contactUnblock(id: ContactId) : Promise<boolean> {
       { name, price, currency, images, description, url, internalId, isHidden }
     ) as Promise<Product>;
   }
+
+  /**
+   * [REQUIRES AN INSIDERS LICENSE-KEY](https://gum.co/open-wa?tier=Insiders%20Program)
+   * 
+   * Edit a product in your catalog
+   * 
+   * @param {string} productId The catalog ID of the product
+   * @param {string} name The name of the product
+   * @param {number} price The price of the product
+   * @param {string} currency The 3-letter currenct code for the product
+   * @param {string[]} images An array of dataurl or base64 strings of product images, the first image will be used as the main image. At least one image is required.
+   * @param {string} description optional, the description of the product
+   * @param {string} url The url of the product for more information
+   * @param {string} internalId The internal/backoffice id of the product
+   * @param {boolean} isHidden Whether or not the product is shown publicly in your catalog
+   * @returns product object
+   */
+   public async editProduct(productId: string, name ?: string, price ?: number, currency ?: string, images ?: DataURL[], description ?: string, url ?: string, internalId ?: string, isHidden ?: boolean) : Promise<Product> {
+    return await this.pup(
+      ({productId, name, price, currency, images, description, url, internalId, isHidden}) => WAPI.editProduct(productId, name, price, currency, images, description, url, internalId, isHidden),
+      { productId, name, price, currency, images, description, url, internalId, isHidden }
+    ) as Promise<Product>;
+  }
+
+  /**
+   * [REQUIRES AN INSIDERS LICENSE-KEY](https://gum.co/open-wa?tier=Insiders%20Program)
+   * 
+   * Send a product to a chat
+   * 
+   * @param {string} chatId The chatId
+   * @param {string} productId The name of the product
+   * @returns MessageID
+   */
+   public async sendProduct(chatId: ChatId, productId : string ) : Promise<MessageId> {
+    return await this.pup(
+      ({ chatId, productId }) => WAPI.sendProduct( chatId, productId ),
+      { chatId, productId }
+    ) as Promise<MessageId>;
+  }
+
 
   /**
    * Retrieves the last message sent by the host account in any given chat or globally.
